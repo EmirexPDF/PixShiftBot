@@ -195,4 +195,40 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- RENDER ALIVE-KEEPER WEB SERVER ---
 
 async def handle_health_check(request):
-    return web.Response(text
+    return web.Response(text="PixShiftBot is awake and operational.")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    await site.start()
+    logger.info(f"Keep-alive web server initialized on port {PORT}")
+
+# --- MAIN EXECUTION APPLICATION ---
+
+def main():
+    if not TOKEN:
+        logger.error("Missing TELEGRAM_BOT_TOKEN environment variable!")
+        return
+
+    # Build bot application instance
+    application = Application.builder().token(TOKEN).build()
+
+    # Direct registration maps
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_document_or_photo))
+    application.add_handler(CallbackQueryHandler(handle_callback))
+
+    # Initialize keep-alive server context using event loops natively
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_web_server())
+
+    # Boot Long-Poll Engine
+    logger.info("Starting @PixShiftBot long-polling instance...")
+    application.run_polling(drop_pending_updates=True)
+
+if __name__ == '__main__':
+    main()
